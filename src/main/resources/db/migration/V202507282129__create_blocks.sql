@@ -1,0 +1,9 @@
+CREATE TABLE blocks (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    block_At TIMESTAMP WITH TIME ZONE NOT NULL,
+    block_reason VARCHAR(255) NOT NULL,
+    unblock_At TIMESTAMP WITH TIME ZONE NOT NULL,
+    unblock_reason VARCHAR(255) NOT NULL,
+    card_id BIGINT NOT NULL,
+    CONSTRAINT cards__blocks_fk FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
+);

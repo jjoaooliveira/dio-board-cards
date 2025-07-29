@@ -1,0 +1,8 @@
+CREATE TABLE cards (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    createdAt TIMESTAMP WITH TIME ZONE NOT NULL,
+    column_id BIGINT NOT NULL,
+    CONSTRAINT columns__cards_fk FOREIGN KEY (column_id) REFERENCES columns(id) ON DELETE CASCADE
+);
