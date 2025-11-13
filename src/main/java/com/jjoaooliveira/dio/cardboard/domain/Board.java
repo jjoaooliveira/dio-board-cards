@@ -1,61 +1,57 @@
 package com.jjoaooliveira.dio.cardboard.domain;
 
 import java.time.OffsetDateTime;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Board {
+    private final AtomicInteger atomicIntegerGenerator;
+    private int cardIdTrack = 0;
     private final int CANCEL_COLUMN_ORDER = 0;
     private final int INITIAL_COLUMN_ORDER = 1;
     private Long id;
-    private String nome;
+    private String name;
     private final Map<Integer, Column> columns;
-    private final List<Block> blocks;
-    private final List<Cancel> cancels;
 
-    public Board(Long id,
-                 String nome,
-                 Map<Integer, Column> columns,
-                 List<Block> blocks,
-                 List<Cancel> cancels) {
-        this.id = id;
-        this.nome = nome;
+    public Board(String name,
+                 Map<Integer, Column> columns) {
+        this.atomicIntegerGenerator = new AtomicInteger();
+        this.name = name;
         this.columns = columns;
-        this.blocks = blocks;
-        this.cancels = cancels;
     }
 
-    public Long getId() {
+    public Board(Long id,
+                 String name,
+                 Map<Integer, Column> columns,
+                 int cardIdTrack) {
+        this.id = id;
+        this.name = name;
+        this.columns = columns;
+        this.cardIdTrack = cardIdTrack;
+        this.atomicIntegerGenerator = new AtomicInteger(cardIdTrack);
+    }
+
+    public long getId() {
         return id;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public int getCardIdTrack() {
+        return cardIdTrack;
     }
 
-    public String getNome() {
-        return nome;
+    public String getName() {
+        return name;
     }
 
-    public void setNome(String nome) {
-        this.nome = nome;
-    }
-
-    public List<Block> getBlocks() {
-        return blocks;
-    }
-
-    public List<Cancel> getCancels() {
-        return cancels;
+    public void setName(String name) {
+        this.name = name;
     }
 
     public Card getTransitiveCard(int columnOrder, int cardId) {
         return searchCardInColumn(columnOrder, cardId);
     }
 
-    public Collection<Column> getColumns(int order) {
+    public Collection<Column> getColumns() {
         return columns.values();
     }
 
@@ -72,101 +68,54 @@ public class Board {
         return card.get();
     }
 
-    public void progressCard(int columnOrder, int cardId) {
+    public void progressCard(final int columnOrder, final int cardId) {
         Card card = searchCardInColumn(columnOrder, cardId);
-        int actualCardColumnOrder = card.getOrder();
-        int nextColumnOrder = actualCardColumnOrder + 1;
+        int nextColumnOrder = columnOrder + 1;
         if(!columns.containsKey(nextColumnOrder)) return;
-        moveCard(card, nextColumnOrder);
+        moveCard(card, columnOrder, nextColumnOrder);
     }
 
     public void blockCard(int columnOrder, int cardId, String blockReason) {
-        // get card and column
         Card card = searchCardInColumn(columnOrder, cardId);
-
-        // verify if card is already blocked
         if(card.isBlocked()) return;
-
-        // block card and add new block object
-        card.block();
-        OffsetDateTime blockedAt = OffsetDateTime.now();
-        blocks.add(new Block(
-                0,
-                cardId,
-                blockedAt,
-                blockReason));
+        card.block(blockReason);
     }
 
     public void unblockCard(int columnOrder, int cardId, String unblockReason) {
-        // get column and card
         Card card = searchCardInColumn(columnOrder, cardId);
-
-        // verify if card is not block
         if(!card.isBlocked()) return;
-
-        // unblock card
-        card.unblock();
-        OffsetDateTime unblockTime = OffsetDateTime.now();
-        Block block = getActiveBlockByCardId(cardId);
-        block.setUnblockReason(unblockReason);
-        block.setUnblockedAt(unblockTime);
+        card.unblock(unblockReason);
     }
 
-    public void cancelCard(int columnOrder, int cardId) {
-        // check if card is already canceled
-        boolean cardIsAlreadyCanceled = cancels.stream()
-                .anyMatch(cancel -> cancel.cardId() == cardId);
-        if(cardIsAlreadyCanceled) return;
-
-        // find card
+    public void cancelCard(final int columnOrder, final int cardId) {
         Card card = searchCardInColumn(columnOrder, cardId);
-
-        // move card to cancel column
-        Cancel cancel = new Cancel(cardId, 0, card.getOrder());
-        cancels.add(cancel);
-        moveCard(card, CANCEL_COLUMN_ORDER);
+        if(card.isCanceled()) return;
+        card.cancel(columnOrder);
+        moveCard(card, columnOrder, CANCEL_COLUMN_ORDER);
     }
 
-    public Cancel recoverCard(int cardId) {
-        // get cancel object
-        Cancel cancelToRecover = cancels.stream()
-                .filter(cancel -> cancel.cardId() == cardId)
-                .findFirst()
-                .orElseThrow(() -> new CancellationNotFoundException(
-                        "Cancellation object does not exist with id: %d",
-                        cardId));
-
-        // move card to original column
+    public void recoverCard(int cardId) {
         Card cardToRecover = searchCardInColumn(CANCEL_COLUMN_ORDER, cardId);
-        moveCard(cardToRecover, cancelToRecover.cancelFrom());
-
-        // remove cancel from list
-        cancels.remove(cancelToRecover);
-        return cancelToRecover;
+        int columnToMoveCardOrder = cardToRecover.uncancel();
+        moveCard(cardToRecover, CANCEL_COLUMN_ORDER, columnToMoveCardOrder);
     }
 
     private Card makeCard(String title, String description) {
+        int cardId = atomicIntegerGenerator.incrementAndGet();
+        cardIdTrack = atomicIntegerGenerator.get();
         OffsetDateTime createdAt = OffsetDateTime.now();
-        return new Card(0, INITIAL_COLUMN_ORDER, title, description, createdAt, false);
+        return new Card(cardId, title, description, createdAt);
     }
 
-    private Card searchCardInColumn(int columnOrder, int cardId) {
+    private Card searchCardInColumn(final int columnOrder, final int cardId) {
         Column column = columns.get(columnOrder);
         Optional<Card> card = column.getCard(cardId);
         if(card.isEmpty()) throw new CardNotFoundException("Card does not exist with id: %d", cardId);
         return card.get();
     }
 
-    private Block getActiveBlockByCardId(int cardId) {
-        return blocks.stream()
-                .filter(block -> block.getCardId() == cardId)
-                .filter(block -> block.getStatus().equals(BlockStatus.ACTIVE))
-                .findFirst()
-                .orElseThrow(() -> new ActiveBlockNotFoundException("Active block not found for card id: %d", cardId));
-    }
-
-    private void moveCard(Card card, int destinationColumnOrder) {
-        Column currentColumn = columns.get(card.getOrder());
+    private void moveCard(Card card, int currentColumnOrder, int destinationColumnOrder) {
+        Column currentColumn = columns.get(currentColumnOrder);
         Column destinationColumn = columns.get(destinationColumnOrder);
         currentColumn.removeCard(card.getId());
         destinationColumn.addCard(card);
