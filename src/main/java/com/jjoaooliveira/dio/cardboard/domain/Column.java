@@ -4,27 +4,27 @@ import java.util.List;
 import java.util.Optional;
 
 public class Column {
-    private final int order;
-    private String nome;
+    private final Integer order;
+    private String name;
     private final ColumnType type;
     private final List<Card> cards;
 
-    public Column(int order,
-                  String nome,
+    public Column(Integer order,
+                  String name,
                   ColumnType type,
                   List<Card> cards) {
         this.order = order;
-        this.nome = nome;
+        this.name = name;
         this.type = type;
         this.cards = cards;
     }
 
-    public String getNome() {
-        return nome;
+    public String getName() {
+        return name;
     }
 
-    public void setNome(String nome) {
-        this.nome = nome;
+    public void setName(String name) {
+        this.name = name;
     }
 
     public int getOrder() {
@@ -37,13 +37,11 @@ public class Column {
 
     public void addCard(Card card) {
         this.cards.add(card);
-        card.changeColumn(this.order);
     }
 
     public Optional<Card> removeCard(int cardId) {
         for (Card card : cards) {
             if (card.getId() == cardId) {
-                card.changeColumn(0);
                 cards.remove(card);
                 return Optional.of(card);
             }
